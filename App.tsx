@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, Sparkles, Download, AlertCircle, Eye } from 'lucide-react';
-import { CharacterName, GenerationState } from './types';
-import { CHARACTERS } from './constants';
-import { uploadFileToDify, runDifyWorkflow } from './services/difyService';
-import { CharacterSelector } from './components/CharacterSelector';
-import { ImageUploader } from './components/ImageUploader';
-import { Fireworks } from './components/Fireworks';
+import { CharacterName, GenerationState } from './types.ts';
+import { CHARACTERS, AUDIO_CONFIG } from './constants.ts';
+import { uploadFileToDify, runDifyWorkflow } from './services/difyService.ts';
+import { CharacterSelector } from './components/CharacterSelector.tsx';
+import { ImageUploader } from './components/ImageUploader.tsx';
+import { Fireworks } from './components/Fireworks.tsx';
+import { BackgroundMusic } from './components/BackgroundMusic.tsx';
 
 const App = () => {
   const [selectedChar, setSelectedChar] = useState<CharacterName>(CharacterName.PIPI);
@@ -15,6 +16,18 @@ const App = () => {
     error: null,
     posterUrl: null,
   });
+  
+  // Ref for Success Sound Effect
+  const sfxRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play SFX when poster is generated
+  useEffect(() => {
+    if (state.posterUrl && sfxRef.current) {
+        sfxRef.current.currentTime = 0;
+        sfxRef.current.volume = 0.6;
+        sfxRef.current.play().catch(e => console.log("SFX autoplay blocked", e));
+    }
+  }, [state.posterUrl]);
 
   const handleGenerate = async () => {
     if (!file) {
@@ -67,6 +80,10 @@ const App = () => {
   return (
     <div className="min-h-screen w-full flex flex-col items-center py-8 px-4 sm:px-6 lg:px-8 font-serif bg-noise">
       <Fireworks trigger={!!state.posterUrl} />
+      <BackgroundMusic />
+      
+      {/* Hidden SFX Audio Element */}
+      <audio ref={sfxRef} src={AUDIO_CONFIG.SUCCESS_SFX_URL} />
       
       {/* Decorative Background Elements */}
       <div className="fixed top-0 left-0 w-32 h-32 border-l-4 border-t-4 border-cn-gold opacity-50 pointer-events-none"></div>

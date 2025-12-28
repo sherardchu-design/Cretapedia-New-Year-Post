@@ -1,5 +1,5 @@
-import { DIFY_API_KEY, DIFY_BASE_URL } from "../constants";
-import { DifyFileUploadResponse, DifyWorkflowResponse } from "../types";
+import { DIFY_API_KEY, DIFY_BASE_URL } from "../constants.ts";
+import { DifyFileUploadResponse, DifyWorkflowResponse } from "../types.ts";
 
 /**
  * Uploads a file to Dify to get a File ID.

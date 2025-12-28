@@ -1,4 +1,4 @@
-import { CharacterName } from "./types";
+import { CharacterName } from "./types.ts";
 
 // Note: In a production environment, API keys should be proxied or handled server-side
 // to prevent exposure. For this standalone demo, we use the provided key.
@@ -14,3 +14,11 @@ export const CHARACTERS = [
 ];
 
 export const PLACEHOLDER_IMAGE = "https://picsum.photos/400/600";
+
+export const AUDIO_CONFIG = {
+  // 替换为您喜欢的粤语新年歌 MP3 链接
+  // 示例链接为免版权喜庆音乐，建议替换为具体的《财神到》或《恭喜发财》链接
+  BGM_URL: "https://ia800403.us.archive.org/21/items/CNY_Music/GongXiGongXi.mp3", 
+  // 烟花/成功音效
+  SUCCESS_SFX_URL: "https://codeskulptor-demos.commondatastorage.googleapis.com/GalaxyInvaders/pause.mp3" 
+};

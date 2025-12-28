@@ -1,6 +1,6 @@
 import React from 'react';
-import { CHARACTERS } from '../constants';
-import { CharacterName } from '../types';
+import { CHARACTERS } from '../constants.ts';
+import { CharacterName } from '../types.ts';
 
 interface CharacterSelectorProps {
   selected: CharacterName;
