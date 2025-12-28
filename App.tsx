@@ -1,0 +1,212 @@
+import React, { useState } from 'react';
+import { Loader2, Sparkles, Download, AlertCircle, Eye } from 'lucide-react';
+import { CharacterName, GenerationState } from './types';
+import { CHARACTERS } from './constants';
+import { uploadFileToDify, runDifyWorkflow } from './services/difyService';
+import { CharacterSelector } from './components/CharacterSelector';
+import { ImageUploader } from './components/ImageUploader';
+import { Fireworks } from './components/Fireworks';
+
+const App = () => {
+  const [selectedChar, setSelectedChar] = useState<CharacterName>(CharacterName.PIPI);
+  const [file, setFile] = useState<File | null>(null);
+  const [state, setState] = useState<GenerationState>({
+    isLoading: false,
+    error: null,
+    posterUrl: null,
+  });
+
+  const handleGenerate = async () => {
+    if (!file) {
+      setState(prev => ({ ...prev, error: "请先上传一张照片 (Please upload a photo first)" }));
+      return;
+    }
+
+    setState({ isLoading: true, error: null, posterUrl: null });
+
+    try {
+      // Step 1: Upload File
+      const fileId = await uploadFileToDify(file);
+      
+      // Step 2: Run Workflow
+      const url = await runDifyWorkflow(fileId, selectedChar);
+      
+      setState({ isLoading: false, error: null, posterUrl: url });
+    } catch (err: any) {
+      console.error(err);
+      let msg = err.message || "生成失败，请稍后重试 (Generation failed, please try again)";
+      
+      // Specific handling for common Dify errors
+      if (msg.includes("Workflow not published")) {
+        msg = "⚠️ 工作流未发布。请前往 Dify 控制台点击右上角 '发布' 按钮。(Workflow not published. Please click 'Publish' in Dify dashboard.)";
+      }
+
+      setState({ 
+        isLoading: false, 
+        error: msg, 
+        posterUrl: null 
+      });
+    }
+  };
+
+  const handleReset = () => {
+    setFile(null);
+    setState({ isLoading: false, error: null, posterUrl: null });
+  };
+
+  // Function to simulate success for design review purposes
+  const handlePreviewMode = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setState({
+        isLoading: false,
+        error: null,
+        posterUrl: "https://images.unsplash.com/photo-1546188994-07c34f295f55?q=80&w=2070&auto=format&fit=crop" // Festive placeholder
+    });
+  };
+
+  return (
+    <div className="min-h-screen w-full flex flex-col items-center py-8 px-4 sm:px-6 lg:px-8 font-serif bg-noise">
+      <Fireworks trigger={!!state.posterUrl} />
+      
+      {/* Decorative Background Elements */}
+      <div className="fixed top-0 left-0 w-32 h-32 border-l-4 border-t-4 border-cn-gold opacity-50 pointer-events-none"></div>
+      <div className="fixed top-0 right-0 w-32 h-32 border-r-4 border-t-4 border-cn-gold opacity-50 pointer-events-none"></div>
+      <div className="fixed bottom-0 left-0 w-32 h-32 border-l-4 border-b-4 border-cn-gold opacity-50 pointer-events-none"></div>
+      <div className="fixed bottom-0 right-0 w-32 h-32 border-r-4 border-b-4 border-cn-gold opacity-50 pointer-events-none"></div>
+
+      {/* Main Container */}
+      <div className="w-full max-w-4xl relative z-10">
+        
+        {/* Header */}
+        <header className="text-center mb-10">
+          <div className="inline-block border-b-2 border-cn-gold pb-2 mb-4">
+            <span className="text-cn-gold tracking-[0.3em] text-sm uppercase">2025 New Year Special</span>
+          </div>
+          <h1 className="text-5xl md:text-7xl font-bold text-cn-gold gold-text-shadow mb-4">
+            新年合影
+          </h1>
+          <p className="text-white/80 text-lg italic max-w-lg mx-auto">
+            Create your exclusive New Year magazine cover with our star characters.
+          </p>
+        </header>
+
+        {/* Content Area */}
+        <div className="glass-panel text-gray-800 rounded-lg shadow-2xl p-6 md:p-10 transition-all duration-500">
+          
+          {state.error && (
+             <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-4 rounded shadow-sm flex items-start gap-3" role="alert">
+                <AlertCircle className="shrink-0 mt-0.5" size={20} />
+                <div>
+                    <strong className="font-bold block mb-1">Could not generate poster</strong>
+                    <span className="block text-sm">{state.error}</span>
+                </div>
+             </div>
+          )}
+
+          <div className="flex flex-col md:flex-row gap-10">
+            
+            {/* Left Column: Input Form */}
+            <div className={`flex-1 transition-all duration-500 ${state.posterUrl ? 'hidden md:block md:w-1/3 md:opacity-50 pointer-events-none' : 'w-full'}`}>
+              <ImageUploader 
+                file={file} 
+                onFileChange={setFile} 
+                disabled={state.isLoading || !!state.posterUrl} 
+              />
+              
+              <CharacterSelector 
+                selected={selectedChar} 
+                onSelect={setSelectedChar}
+                disabled={state.isLoading || !!state.posterUrl}
+              />
+
+              {!state.posterUrl && (
+                <button
+                  onClick={handleGenerate}
+                  disabled={state.isLoading || !file}
+                  className={`
+                    w-full py-4 text-lg font-bold uppercase tracking-wider text-white rounded-lg shadow-lg transition-all
+                    flex items-center justify-center gap-2
+                    ${state.isLoading || !file 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-gradient-to-r from-cn-red to-cn-red-light hover:from-cn-gold hover:to-cn-gold-light hover:text-cn-red transform hover:-translate-y-1'}
+                  `}
+                >
+                  {state.isLoading ? (
+                    <>
+                      <Loader2 className="animate-spin" /> Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles /> Generate Poster
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Right Column: Output / Result */}
+            {(state.isLoading || state.posterUrl) && (
+              <div className="flex-1 flex flex-col items-center justify-center min-h-[400px]">
+                
+                {state.isLoading && (
+                   <div className="flex flex-col items-center justify-center space-y-4 animate-pulse">
+                      <div className="w-full h-96 bg-gray-200/50 rounded-lg flex items-center justify-center">
+                        <div className="text-center">
+                          <Loader2 size={48} className="animate-spin text-cn-gold mx-auto mb-4" />
+                          <p className="text-cn-red-light font-serif text-xl">Creating Magic...</p>
+                          <p className="text-gray-500 text-sm mt-2">Connecting to AI Studio</p>
+                        </div>
+                      </div>
+                   </div>
+                )}
+
+                {state.posterUrl && !state.isLoading && (
+                  <div className="w-full flex flex-col items-center animate-fade-in-up">
+                    <div className="relative p-2 bg-white shadow-2xl rounded-lg transform rotate-1 hover:rotate-0 transition-transform duration-500">
+                      <div className="absolute top-0 left-0 w-full h-full border-4 border-cn-gold rounded-lg pointer-events-none z-10"></div>
+                      <img 
+                        src={state.posterUrl} 
+                        alt="Generated Poster" 
+                        className="w-full rounded h-auto max-h-[70vh] object-contain"
+                      />
+                    </div>
+                    
+                    <div className="flex gap-4 mt-8">
+                       <a 
+                        href={state.posterUrl} 
+                        download="NewYearPoster.png"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 bg-cn-gold text-cn-red font-bold py-3 px-6 rounded-full hover:bg-white hover:text-cn-gold transition-colors shadow-lg"
+                       >
+                         <Download size={20} /> Download
+                       </a>
+                       <button
+                        onClick={handleReset}
+                        className="flex items-center gap-2 bg-transparent border-2 border-cn-red text-cn-red font-bold py-3 px-6 rounded-full hover:bg-cn-red hover:text-white transition-colors"
+                       >
+                         Create Another
+                       </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <footer className="mt-12 text-center text-cn-gold/60 text-sm">
+          <p>© 2025 New Year Studio. Powered by Dify & AI.</p>
+          <div className="mt-2">
+            <a href="#" onClick={handlePreviewMode} className="inline-flex items-center gap-1 text-xs opacity-50 hover:opacity-100 border-b border-transparent hover:border-cn-gold transition-all">
+                <Eye size={10} /> Test Design Preview (No API)
+            </a>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+};
+
+export default App;
