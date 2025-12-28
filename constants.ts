@@ -16,9 +16,9 @@ export const CHARACTERS = [
 export const PLACEHOLDER_IMAGE = "https://picsum.photos/400/600";
 
 export const AUDIO_CONFIG = {
-  // 替换为您喜欢的粤语新年歌 MP3 链接
-  // 示例链接为免版权喜庆音乐，建议替换为具体的《财神到》或《恭喜发财》链接
-  BGM_URL: "https://ia800403.us.archive.org/21/items/CNY_Music/GongXiGongXi.mp3", 
-  // 烟花/成功音效
-  SUCCESS_SFX_URL: "https://codeskulptor-demos.commondatastorage.googleapis.com/GalaxyInvaders/pause.mp3" 
+  BGM_URL: "https://ia800503.us.archive.org/15/items/ChineseNewYearMusic/Chinese%20New%20Year%20Music%20-%2001%20-%20Spring%20Festival%20Overture.mp3", 
+  // 烟花绽放音效 - 生成成功时播放
+  SUCCESS_SFX_URL: "https://ia801402.us.archive.org/16/items/firework_202201/fireworks.mp3", 
+  // 清脆的木鱼/梆子声 - 点击交互时播放 (轻量级)
+  CLICK_SFX_URL: "https://ia902807.us.archive.org/29/items/sound_effects_202008/WoodBlock.mp3"
 };

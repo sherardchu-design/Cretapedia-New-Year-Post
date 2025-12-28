@@ -44,7 +44,8 @@ const CHARACTERS = [
 
 const AUDIO_CONFIG = {
   BGM_URL: "https://ia800503.us.archive.org/15/items/ChineseNewYearMusic/Chinese%20New%20Year%20Music%20-%2001%20-%20Spring%20Festival%20Overture.mp3", 
-  SUCCESS_SFX_URL: "https://codeskulptor-demos.commondatastorage.googleapis.com/GalaxyInvaders/pause.mp3" 
+  SUCCESS_SFX_URL: "https://ia801402.us.archive.org/16/items/firework_202201/fireworks.mp3", 
+  CLICK_SFX_URL: "https://ia902807.us.archive.org/29/items/sound_effects_202008/WoodBlock.mp3"
 };
 
 // --- SERVICES ---
@@ -146,10 +147,12 @@ const BackgroundMusic: React.FC = () => {
 
   return (
     <div className="fixed top-6 right-6 z-50 flex flex-col items-center gap-2">
+      {/* Preload none ensures audio doesn't impact initial page load */}
       <audio 
         ref={audioRef} 
         src={AUDIO_CONFIG.BGM_URL} 
         loop 
+        preload="none"
       />
       
       <button
@@ -292,17 +295,30 @@ const App = () => {
   const [selectedChar, setSelectedChar] = useState<CharacterName>(CharacterName.PIPI);
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<GenerationState>({ isLoading: false, error: null, posterUrl: null });
-  const sfxRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Audio Refs
+  const sfxSuccessRef = useRef<HTMLAudioElement | null>(null);
+  const sfxClickRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play Sound Utility
+  const playClickSound = () => {
+    if (sfxClickRef.current) {
+        sfxClickRef.current.currentTime = 0;
+        sfxClickRef.current.volume = 0.4;
+        sfxClickRef.current.play().catch(() => {}); // Ignore errors if not ready/allowed
+    }
+  };
 
   useEffect(() => {
-    if (state.posterUrl && sfxRef.current) {
-        sfxRef.current.currentTime = 0;
-        sfxRef.current.volume = 0.5;
-        sfxRef.current.play().catch(() => {});
+    if (state.posterUrl && sfxSuccessRef.current) {
+        sfxSuccessRef.current.currentTime = 0;
+        sfxSuccessRef.current.volume = 0.5;
+        sfxSuccessRef.current.play().catch(() => {});
     }
   }, [state.posterUrl]);
 
   const handleGenerate = async () => {
+    playClickSound(); // Play sound on button click
     if (!file) return;
     setState({ isLoading: true, error: null, posterUrl: null });
     try {
@@ -315,13 +331,26 @@ const App = () => {
   };
 
   const handleReset = () => {
+    playClickSound();
     setFile(null);
     setState({ isLoading: false, error: null, posterUrl: null });
   };
 
   const handlePreview = (e: React.MouseEvent) => {
     e.preventDefault();
+    playClickSound();
     setState({ isLoading: false, error: null, posterUrl: "https://images.unsplash.com/photo-1546188994-07c34f295f55?q=80&w=2070&auto=format&fit=crop" });
+  };
+
+  // Wrapped Handlers for Sound
+  const onFileChangeWithSound = (f: File | null) => {
+    if (f) playClickSound();
+    setFile(f);
+  };
+
+  const onSelectCharWithSound = (c: CharacterName) => {
+    playClickSound();
+    setSelectedChar(c);
   };
 
   return (
@@ -340,7 +369,10 @@ const App = () => {
 
       <Fireworks trigger={!!state.posterUrl} />
       <BackgroundMusic />
-      <audio ref={sfxRef} src={AUDIO_CONFIG.SUCCESS_SFX_URL} />
+      
+      {/* SFX Elements with preload="none" to optimize load time */}
+      <audio ref={sfxSuccessRef} src={AUDIO_CONFIG.SUCCESS_SFX_URL} preload="none" />
+      <audio ref={sfxClickRef} src={AUDIO_CONFIG.CLICK_SFX_URL} preload="none" />
       
       {/* Main Container */}
       <div className="relative z-10 w-full max-w-7xl px-4 py-8 md:py-12 flex flex-col items-center">
@@ -385,8 +417,8 @@ const App = () => {
                         </div>
                      )}
 
-                     <ImageUploader file={file} onFileChange={setFile} disabled={state.isLoading} />
-                     <CharacterSelector selected={selectedChar} onSelect={setSelectedChar} disabled={state.isLoading} />
+                     <ImageUploader file={file} onFileChange={onFileChangeWithSound} disabled={state.isLoading} />
+                     <CharacterSelector selected={selectedChar} onSelect={onSelectCharWithSound} disabled={state.isLoading} />
                 </div>
 
                 <div className="mt-10 pt-6 border-t border-dashed border-gray-300">
