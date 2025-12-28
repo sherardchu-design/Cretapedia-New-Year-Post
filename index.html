@@ -34,6 +34,8 @@
       body {
         background-color: #8B0000;
         color: #FDFBF7;
+        margin: 0;
+        font-family: sans-serif;
       }
       .gold-text-shadow {
         text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
@@ -42,6 +44,48 @@
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
         border: 1px solid rgba(212, 175, 55, 0.3);
+      }
+      
+      /* Diagnostic Styles */
+      #diagnostic-overlay {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        max-height: 50vh;
+        background: rgba(0, 0, 0, 0.85);
+        color: #ff6b6b;
+        font-family: 'Courier New', monospace;
+        padding: 20px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        z-index: 99999;
+        border-top: 2px solid #ff4444;
+      }
+      #diagnostic-overlay h3 {
+        margin-top: 0;
+        color: #fff;
+        border-bottom: 1px solid #555;
+        padding-bottom: 5px;
+      }
+      .error-item {
+        margin-bottom: 8px;
+        border-bottom: 1px solid #333;
+        padding-bottom: 4px;
+      }
+      .loading-spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top: 4px solid #D4AF37;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
     </style>
   <script type="importmap">
@@ -56,7 +100,70 @@
 </script>
 </head>
   <body>
-    <div id="root"></div>
+    <!-- 1. Fallback / Loading UI -->
+    <div id="root">
+      <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;">
+        <div class="loading-spinner"></div>
+        <h2 style="color: #D4AF37; font-size: 1.5rem; margin-bottom: 0.5rem;">正在启动新年合影...</h2>
+        <p style="color: rgba(255,255,255,0.7);">Loading Application...</p>
+        <p id="long-load-hint" style="margin-top: 20px; font-size: 0.8rem; color: #ffcccc; display: none; max-width: 400px;">
+          ⚠️ 似乎加载时间过长。如果您看到此信息，可能是因为浏览器无法直接加载本地 .tsx 文件。<br/><br/>
+          请尝试打开下方的控制台查看详细错误。
+        </p>
+      </div>
+    </div>
+
+    <!-- 2. Diagnostic Overlay -->
+    <div id="diagnostic-overlay">
+      <h3>⚠️ 系统诊断 (System Diagnosis)</h3>
+      <div id="error-list"></div>
+      <p style="color: #ccc; font-size: 0.8em; margin-top: 10px;">
+        提示：如果遇到 "CORS" 或 "Module" 错误，请确保使用本地服务器 (如 Live Server) 运行，而不是直接双击 HTML 文件。<br/>
+        Tip: Please run via a local server (e.g. VSCode Live Server) instead of file:// protocol.
+      </p>
+      <button onclick="document.getElementById('diagnostic-overlay').style.display='none'" style="margin-top:10px; padding:5px 10px; background:#444; color:white; border:none; cursor:pointer;">关闭 (Close)</button>
+    </div>
+
+    <!-- 3. Error Handling Script -->
+    <script>
+      (function() {
+        var overlay = document.getElementById('diagnostic-overlay');
+        var list = document.getElementById('error-list');
+        var hint = document.getElementById('long-load-hint');
+        
+        function showError(msg, detail) {
+          overlay.style.display = 'block';
+          var div = document.createElement('div');
+          div.className = 'error-item';
+          div.innerHTML = '<strong>Error:</strong> ' + msg + '<br/><small>' + (detail || '') + '</small>';
+          list.appendChild(div);
+        }
+
+        // Catch global script errors
+        window.onerror = function(message, source, lineno, colno, error) {
+          showError(message, source + ':' + lineno);
+          return false;
+        };
+
+        // Catch promise rejections (often network or async await errors)
+        window.addEventListener('unhandledrejection', function(event) {
+          showError('Promise Rejection', event.reason);
+        });
+
+        // Show hint if loading takes too long (> 3 seconds)
+        setTimeout(function() {
+          // If root still contains the spinner (meaning React hasn't overwritten it)
+          var root = document.getElementById('root');
+          if (root && root.querySelector('.loading-spinner')) {
+             if (hint) hint.style.display = 'block';
+             // Also log a warning to the overlay
+             showError('Timeout Warning', 'React failed to mount within 3 seconds. Check imports.');
+          }
+        }, 3000);
+      })();
+    </script>
+
+    <!-- 4. Main Application Entry -->
     <!-- Changed type to text/babel and added data-presets -->
     <script type="text/babel" data-type="module" data-presets="react,typescript" src="./index.tsx"></script>
   </body>
