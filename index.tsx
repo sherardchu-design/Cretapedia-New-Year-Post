@@ -43,7 +43,7 @@ const CHARACTERS = [
 ];
 
 const AUDIO_CONFIG = {
-  BGM_URL: "https://ia800403.us.archive.org/21/items/CNY_Music/GongXiGongXi.mp3", 
+  BGM_URL: "https://ia800503.us.archive.org/15/items/ChineseNewYearMusic/Chinese%20New%20Year%20Music%20-%2001%20-%20Spring%20Festival%20Overture.mp3", 
   SUCCESS_SFX_URL: "https://codeskulptor-demos.commondatastorage.googleapis.com/GalaxyInvaders/pause.mp3" 
 };
 
@@ -123,28 +123,61 @@ const BackgroundMusic: React.FC = () => {
 
   useEffect(() => {
     if (audioRef.current) {
-        audioRef.current.volume = 0.2;
-        audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+        // Just set the volume, do not call play() by default
+        audioRef.current.volume = 0.3; 
     }
   }, []);
 
   const togglePlay = () => {
     if (audioRef.current) {
-      if (isPlaying) audioRef.current.pause();
-      else audioRef.current.play();
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log("Playback prevented:", error);
+            });
+        }
+      }
       setIsPlaying(!isPlaying);
     }
   };
 
   return (
-    <div className="fixed top-6 right-6 z-50 animate-fade-in" style={{ animationDelay: '1s' }}>
-      <audio ref={audioRef} src={AUDIO_CONFIG.BGM_URL} loop />
+    <div className="fixed top-6 right-6 z-50 flex flex-col items-center gap-2">
+      <audio 
+        ref={audioRef} 
+        src={AUDIO_CONFIG.BGM_URL} 
+        loop 
+      />
+      
       <button
         onClick={togglePlay}
-        className={`group relative w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center border border-white/10 shadow-xl backdrop-blur-md transition-all duration-500 ${isPlaying ? 'bg-cn-red/90 text-cn-gold' : 'bg-black/20 text-white/50 hover:bg-black/40'}`}
+        className={`
+          relative w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center 
+          shadow-[0_0_15px_rgba(197,160,89,0.5)] border-2 border-[#C5A059]
+          transition-all duration-500 overflow-hidden group
+          ${isPlaying ? 'bg-[#7A1A1A] animate-spin-slow' : 'bg-black/40 hover:bg-[#7A1A1A]'}
+        `}
+        title={isPlaying ? "暂停音乐" : "播放春节序曲"}
       >
-        {isPlaying ? <Volume2 size={16} /> : <VolumeX size={16} />}
+        <div className="absolute inset-1 rounded-full border border-[#C5A059]/30 border-dashed"></div>
+        <div className={`relative z-10 text-[#C5A059] transition-transform duration-300 ${isPlaying ? 'scale-110' : 'scale-100'}`}>
+          {isPlaying ? <Volume2 size={24} /> : <VolumeX size={24} />}
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
       </button>
+
+      <style>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 8s linear infinite;
+        }
+      `}</style>
     </div>
   );
 };
@@ -187,7 +220,7 @@ const ImageUploader: React.FC<{ file: File | null; onFileChange: (f: File | null
         className={`
           relative w-full h-48 rounded-sm border transition-all duration-500 ease-out cursor-pointer overflow-hidden
           ${isDragging ? 'border-cn-gold bg-cn-gold/5 border-solid' : 'border-dashed border-gray-300 hover:border-cn-gold/50 hover:bg-paper'}
-          ${disabled ? 'opacity-60 cursor-not-allowed grayscale' : ''}
+          ${disabled ? 'opacity-60 cursor-not-allowed' : ''}
           ${preview ? 'bg-gray-100 border-none shadow-inner' : ''}
         `}
       >
