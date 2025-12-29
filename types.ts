@@ -33,7 +33,7 @@ export interface DifyWorkflowResponse {
       poster_url: string;
       [key: string]: any;
     };
-    error: any;
+    error?: any; // Made optional and included to fix type issues
     elapsed_time: number;
     total_tokens: number;
     total_steps: number;
