@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
   Loader2, Sparkles, Download, AlertCircle, 
-  Volume2, VolumeX, Upload, RefreshCcw, Wand2 
+  Volume2, VolumeX, Upload, RefreshCcw, Wand2, X
 } from 'lucide-react';
 
 // --- 配置与常量 ---
@@ -24,16 +24,14 @@ enum CharacterName {
 }
 
 const CHARACTERS = [
-  { id: CharacterName.PIPI, label: "皮皮" },
-  { id: CharacterName.SHANDIAN, label: "闪电" },
-  { id: CharacterName.TANGTANG, label: "糖糖" },
-  { id: CharacterName.ZACK, label: "Zack" },
-  { id: CharacterName.BADOU, label: "八斗" },
+  { id: CharacterName.PIPI, label: "皮皮", desc: "活泼" },
+  { id: CharacterName.SHANDIAN, label: "闪电", desc: "灵动" },
+  { id: CharacterName.TANGTANG, label: "糖糖", desc: "甜美" },
+  { id: CharacterName.ZACK, label: "Zack", desc: "酷飒" },
+  { id: CharacterName.BADOU, label: "八斗", desc: "睿智" },
 ];
 
-// --- 核心工具函数 ---
-
-// 架构级优化 1: 强力图像压缩管道
+// --- 核心图像处理：彻底解决上传慢的问题 ---
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -45,7 +43,7 @@ const compressImage = async (file: File): Promise<File> => {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        const MAX_SIDE = 1200; // 限制长边，确保 Dify 接口秒级响应
+        const MAX_SIDE = 1080; // 优化至 1080p 级别，兼顾清晰度与上传速度
 
         if (width > height && width > MAX_SIDE) {
           height *= MAX_SIDE / width;
@@ -62,30 +60,30 @@ const compressImage = async (file: File): Promise<File> => {
         
         canvas.toBlob((blob) => {
           if (blob) {
-            resolve(new File([blob], "upload.jpg", { type: 'image/jpeg' }));
+            resolve(new File([blob], "compressed_avatar.jpg", { type: 'image/jpeg' }));
           } else {
-            reject(new Error('压缩失败'));
+            reject(new Error('图片处理失败'));
           }
-        }, 'image/jpeg', 0.8); // 80% 质量，体积与清晰度的黄金平衡
+        }, 'image/jpeg', 0.82); // 0.82 是画质与体积的平衡点
       };
-      img.onerror = () => reject(new Error('图片解析失败'));
+      img.onerror = () => reject(new Error('图片加载异常'));
     };
-    reader.onerror = () => reject(new Error('读取失败'));
+    reader.onerror = () => reject(new Error('文件读取异常'));
   });
 };
 
-// --- API 服务 ---
-const api = {
+// --- API 请求封装 ---
+const difyApi = {
   upload: async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("user", "web-user");
+    formData.append("user", "web-visitor");
     const res = await fetch(`${DIFY_BASE_URL}/files/upload`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${DIFY_API_KEY}` },
       body: formData,
     });
-    if (!res.ok) throw new Error("服务器上传失败");
+    if (!res.ok) throw new Error("上传请求超时或接口异常");
     return (await res.json()).id;
   },
   generate: async (fileId: string, charName: string) => {
@@ -96,60 +94,31 @@ const api = {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        inputs: {
-          ip_name: charName,
-          user_image: { type: "image", transfer_method: "local_file", upload_file_id: fileId },
-        },
+        inputs: { ip_name: charName, user_image: { type: "image", transfer_method: "local_file", upload_file_id: fileId } },
         response_mode: "blocking",
-        user: "web-user-" + Date.now(),
+        user: `user-${Date.now()}`,
       }),
     });
-    if (!res.ok) throw new Error("工作流启动失败");
+    if (!res.ok) throw new Error("AI 生成任务启动失败");
     const json = await res.json();
-    if (json.data?.status === "failed") throw new Error(json.data.error || "生成失败");
+    if (json.data?.status === "failed") throw new Error(json.data.error || "工作流执行中断");
     return json.data?.outputs?.poster_url;
   }
 };
 
-// --- 子组件 ---
-
-const BackgroundMusic: React.FC = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  const toggle = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) audioRef.current.pause();
-    else audioRef.current.play().catch(() => {});
-    setIsPlaying(!isPlaying);
-  };
-
-  return (
-    <div className="fixed top-6 right-6 z-50">
-      <audio ref={audioRef} src={AUDIO_CONFIG.BGM_URL} loop preload="none" />
-      <button 
-        onClick={toggle}
-        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 border-cn-gold shadow-2xl transition-all ${isPlaying ? 'bg-cn-red animate-spin-slow' : 'bg-black/40'}`}
-      >
-        {isPlaying ? <Volume2 className="text-cn-gold" size={20} /> : <VolumeX className="text-cn-gold" size={20} />}
-      </button>
-    </div>
-  );
-};
-
-// --- 主应用 ---
-
+// --- 主应用组件 ---
 const App = () => {
-  // 状态管理
   const [file, setFile] = useState<File | null>(null);
   const [compressedFile, setCompressedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedChar, setSelectedChar] = useState<CharacterName>(CharacterName.PIPI);
-  const [loadingStep, setLoadingStep] = useState<string | null>(null); // 'compressing' | 'uploading' | 'generating'
+  const [status, setStatus] = useState<null | 'compressing' | 'uploading' | 'generating'>(null);
   const [error, setError] = useState<string | null>(null);
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
+  const [isBgmPlaying, setIsBgmPlaying] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
-  // 音效引用
+  const bgmRef = useRef<HTMLAudioElement>(null);
   const sfxClick = useRef<HTMLAudioElement>(null);
   const sfxSuccess = useRef<HTMLAudioElement>(null);
 
@@ -160,131 +129,163 @@ const App = () => {
     }
   };
 
-  // 架构级优化 1：文件选择后立即触发压缩
-  const handleFileChange = useCallback(async (selected: File) => {
+  // 图像选择逻辑
+  const processNewFile = async (selected: File) => {
+    if (!selected.type.startsWith('image/')) {
+      setError("请选择有效的图片文件。");
+      return;
+    }
     playSfx(sfxClick);
     setError(null);
+    setPosterUrl(null);
     setFile(selected);
     setPreview(URL.createObjectURL(selected));
     
-    // 后台立即压缩，不阻塞用户选择角色
+    // 异步后台压缩，不影响用户选人
     try {
-      const comp = await compressImage(selected);
-      setCompressedFile(comp);
-    } catch (err) {
-      setError("图片处理失败，请更换一张。");
+      const compressed = await compressImage(selected);
+      setCompressedFile(compressed);
+    } catch (e) {
+      setError("图片预处理失败");
     }
-  }, []);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) processNewFile(droppedFile);
+  };
 
   const handleGenerate = async () => {
     if (!file) return;
     playSfx(sfxClick);
     setError(null);
-    setPosterUrl(null);
     
     try {
-      // 1. 检查压缩状态
-      let targetFile = compressedFile;
-      if (!targetFile) {
-        setLoadingStep('compressing');
-        targetFile = await compressImage(file);
-        setCompressedFile(targetFile);
+      let readyFile = compressedFile;
+      if (!readyFile) {
+        setStatus('compressing');
+        readyFile = await compressImage(file);
       }
 
-      // 2. 上传
-      setLoadingStep('uploading');
-      const fileId = await api.upload(targetFile);
+      setStatus('uploading');
+      const fileId = await difyApi.upload(readyFile);
 
-      // 3. 生成
-      setLoadingStep('generating');
-      const url = await api.generate(fileId, selectedChar);
+      setStatus('generating');
+      const url = await difyApi.generate(fileId, selectedChar);
       
       setPosterUrl(url);
       playSfx(sfxSuccess);
-      
-      // 触发烟花 (如果全局 confetti 可用)
       if (window['confetti']) {
         window['confetti']({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#C5A059', '#7A1A1A'] });
       }
     } catch (err: any) {
       setError(err.message || "由于网络拥堵，生成失败，请重试。");
     } finally {
-      setLoadingStep(null);
+      setStatus(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-cn-red text-ink font-serif relative overflow-x-hidden selection:bg-cn-gold selection:text-cn-red">
-      <BackgroundMusic />
+    <div className="min-h-screen bg-cn-red text-ink font-serif relative overflow-x-hidden">
+      {/* 音频控制 */}
+      <audio ref={bgmRef} src={AUDIO_CONFIG.BGM_URL} loop preload="none" />
       <audio ref={sfxClick} src={AUDIO_CONFIG.CLICK_SFX_URL} preload="none" />
       <audio ref={sfxSuccess} src={AUDIO_CONFIG.SUCCESS_SFX_URL} preload="none" />
       
-      {/* 装饰底纹 */}
-      <div className="fixed inset-0 bg-noise opacity-20 pointer-events-none z-0"></div>
-      
-      <div className="relative z-10 max-w-6xl mx-auto px-4 py-12 md:py-20 flex flex-col items-center">
+      <div className="fixed top-6 right-6 z-50">
+        <button 
+          onClick={() => {
+            if (isBgmPlaying) bgmRef.current?.pause();
+            else bgmRef.current?.play().catch(() => {});
+            setIsBgmPlaying(!isBgmPlaying);
+          }}
+          className={`w-12 h-12 rounded-full flex items-center justify-center border-2 border-cn-gold/50 shadow-2xl transition-all ${isBgmPlaying ? 'bg-cn-red-light animate-spin-slow' : 'bg-black/20 hover:bg-black/40'}`}
+        >
+          {isBgmPlaying ? <Volume2 className="text-cn-gold" size={20} /> : <VolumeX className="text-cn-gold" size={20} />}
+        </button>
+      </div>
+
+      <div className="fixed inset-0 bg-noise opacity-30 pointer-events-none"></div>
+
+      <div className="relative z-10 max-w-5xl mx-auto px-4 py-10 md:py-16 flex flex-col items-center">
         
-        {/* 头部标题 */}
-        <header className="text-center mb-12 animate-fade-in">
-          <div className="text-cn-gold tracking-[0.5em] text-sm mb-4 opacity-70">LUNAR NEW YEAR 2026</div>
-          <h1 className="text-6xl md:text-8xl font-bold text-gold-gradient mb-6">二零二六</h1>
-          <div className="h-px w-24 bg-cn-gold mx-auto mb-6 opacity-30"></div>
-          <p className="text-white/80 text-xl tracking-[0.2em]">新春映像 · 定制工坊</p>
+        {/* 标题区 */}
+        <header className="text-center mb-10 animate-fade-in">
+          <div className="text-cn-gold tracking-[0.4em] text-xs mb-3 font-bold opacity-80 uppercase">丙午 · 2026 马年志庆</div>
+          <h1 className="text-6xl md:text-8xl font-bold text-gold-gradient mb-6 drop-shadow-lg">新春 · 映像</h1>
+          <div className="flex items-center justify-center gap-4">
+            <span className="h-px w-10 bg-cn-gold/40"></span>
+            <p className="text-white/80 text-lg tracking-[0.2em] italic">定制您的二零二六贺岁海报</p>
+            <span className="h-px w-10 bg-cn-gold/40"></span>
+          </div>
         </header>
 
-        {/* 核心交互区 */}
-        <main className="w-full bg-paper rounded-sm shadow-2xl flex flex-col md:flex-row border-4 border-double border-cn-gold/20 overflow-hidden">
+        {/* 主交互面板 */}
+        <main className="w-full bg-paper rounded-lg shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col md:flex-row overflow-hidden border-2 border-cn-gold/10">
           
-          {/* 左侧：控制面板 */}
-          <div className="w-full md:w-[420px] p-8 md:p-12 bg-white border-r border-gray-100 flex flex-col shrink-0">
-            <h2 className="text-2xl font-bold text-cn-red mb-8 flex items-center gap-2">
-              <span className="w-2 h-2 bg-cn-gold rotate-45"></span>
-              参数设置
-            </h2>
+          {/* 左侧：步骤指引 */}
+          <div className="w-full md:w-[400px] p-8 md:p-12 bg-[#FDFBF7] flex flex-col border-b md:border-b-0 md:border-r border-gray-100">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-cn-red mb-1">工坊工序</h2>
+              <p className="text-[10px] text-gray-400 tracking-widest uppercase">Generation Process</p>
+            </div>
 
-            {/* 错误显示 */}
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-100 text-cn-red text-sm flex items-start gap-2 animate-shake">
+              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-400 text-cn-red text-sm flex items-start gap-2 animate-shake">
                 <AlertCircle size={16} className="shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* 上传器 */}
-            <div className="mb-10">
-              <label className="block text-xs text-gray-400 tracking-widest uppercase mb-4">Step 1. 上传肖像</label>
+            {/* Step 1: 上传 */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-bold text-cn-red flex items-center gap-2">
+                   <span className="w-1.5 h-1.5 bg-cn-gold rotate-45"></span>
+                   壹 · 上传个人肖像
+                </label>
+                {preview && <button onClick={() => { setFile(null); setPreview(null); }} className="text-[10px] text-gray-300 hover:text-cn-red">清除</button>}
+              </div>
               <div 
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
                 onClick={() => document.getElementById('file-input')?.click()}
-                className={`group relative h-48 border-2 border-dashed rounded-sm transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden
-                  ${preview ? 'border-cn-gold' : 'border-gray-200 hover:border-cn-gold/50 hover:bg-gray-50'}`}
+                className={`relative h-44 border-2 border-dashed rounded-lg transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden
+                  ${isDragging ? 'border-cn-gold bg-cn-gold/5 scale-[0.98]' : 'border-gray-200 hover:border-cn-gold/50 hover:bg-gray-50'}`}
               >
-                <input id="file-input" type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileChange(e.target.files[0])} />
+                <input id="file-input" type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && processNewFile(e.target.files[0])} />
                 {preview ? (
                   <img src={preview} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="text-center">
-                    <Upload className="mx-auto text-gray-300 group-hover:text-cn-gold transition-colors mb-2" size={24} />
-                    <span className="text-sm text-gray-400">点击上传照片</span>
+                  <div className="text-center px-4">
+                    <Upload className="mx-auto text-gray-300 mb-2 group-hover:text-cn-gold" size={28} />
+                    <p className="text-xs text-gray-400">点击此处或直接拖拽图片上传</p>
                   </div>
                 )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <span className="text-white text-xs font-bold tracking-widest">更换照片</span>
+                <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="text-white text-xs font-bold tracking-widest">更换图片</span>
                 </div>
               </div>
             </div>
 
-            {/* 角色选择 */}
+            {/* Step 2: 角色 */}
             <div className="mb-10">
-              <label className="block text-xs text-gray-400 tracking-widest uppercase mb-4">Step 2. 挑选伙伴</label>
+              <label className="text-sm font-bold text-cn-red flex items-center gap-2 mb-4">
+                <span className="w-1.5 h-1.5 bg-cn-gold rotate-45"></span>
+                贰 · 选择风格形象
+              </label>
               <div className="grid grid-cols-5 gap-2">
                 {CHARACTERS.map((char) => (
                   <button
                     key={char.id}
                     onClick={() => { playSfx(sfxClick); setSelectedChar(char.id); }}
-                    className={`h-12 rounded-sm border transition-all text-xs font-bold
-                      ${selectedChar === char.id ? 'bg-cn-red border-cn-red text-cn-gold shadow-lg scale-105' : 'bg-gray-50 border-gray-100 text-gray-400 hover:border-cn-gold/30'}`}
+                    className={`h-12 flex flex-col items-center justify-center rounded-sm border transition-all
+                      ${selectedChar === char.id ? 'bg-cn-red border-cn-red text-cn-gold shadow-md scale-105' : 'bg-gray-50 border-gray-100 text-gray-400 hover:border-cn-gold/30'}`}
                   >
-                    {char.label}
+                    <span className="text-xs font-bold leading-none">{char.label}</span>
                   </button>
                 ))}
               </div>
@@ -293,86 +294,81 @@ const App = () => {
             {/* 生成按钮 */}
             <button
               onClick={handleGenerate}
-              disabled={!!loadingStep || !file}
-              className={`mt-auto w-full py-5 rounded-sm font-bold tracking-[0.3em] transition-all relative overflow-hidden group
-                ${!!loadingStep || !file ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-cn-red text-cn-gold hover:shadow-xl hover:-translate-y-0.5'}`}
+              disabled={!!status || !file}
+              className={`mt-auto w-full py-5 rounded-lg font-bold tracking-[0.4em] transition-all relative overflow-hidden group
+                ${!!status || !file ? 'bg-gray-100 text-gray-300 cursor-not-allowed shadow-none' : 'bg-cn-red text-cn-gold hover:bg-[#601010] shadow-xl hover:-translate-y-0.5'}`}
             >
               <div className="relative z-10 flex items-center justify-center gap-2">
-                {loadingStep ? (
+                {status ? (
                   <>
                     <Loader2 className="animate-spin" size={18} />
-                    <span>
-                      {loadingStep === 'compressing' && '图片压缩中...'}
-                      {loadingStep === 'uploading' && '影像上传中...'}
-                      {loadingStep === 'generating' && 'AI 创作中...'}
+                    <span className="text-sm">
+                      {status === 'compressing' && '预处理中...'}
+                      {status === 'uploading' && '影像上传中...'}
+                      {status === 'generating' && 'AI 生成中...'}
                     </span>
                   </>
                 ) : (
                   <>
                     <Wand2 size={18} />
-                    <span>立即生成</span>
+                    <span className="text-base">立即冲印海报</span>
                   </>
                 )}
               </div>
             </button>
+            <p className="mt-4 text-[10px] text-gray-300 text-center leading-relaxed">提示：支持 JPG/PNG 格式，系统将自动进行合影处理</p>
           </div>
 
-          {/* 右侧：预览画布 */}
-          <div className="flex-1 bg-[#EEECE5] p-8 md:p-16 relative flex items-center justify-center min-h-[500px]">
-            {/* 纸张纹理 */}
-            <div className="absolute inset-0 bg-paper-texture opacity-40 mix-blend-multiply pointer-events-none"></div>
+          {/* 右侧：预览区 */}
+          <div className="flex-1 bg-[#EEECE5] p-6 md:p-12 relative flex items-center justify-center min-h-[500px]">
+            <div className="absolute inset-0 bg-paper-texture opacity-30 mix-blend-multiply pointer-events-none"></div>
             
-            {/* 装饰边框 */}
-            <div className="absolute inset-8 border border-gray-300/50 pointer-events-none"></div>
-
-            <div className={`relative bg-white p-4 shadow-2xl transition-all duration-1000 ${posterUrl ? 'scale-100 rotate-0' : 'scale-95 opacity-80'}`}>
-              <div className="w-full max-w-[380px] aspect-[3/4] bg-gray-50 border border-gray-100 flex items-center justify-center relative overflow-hidden group">
+            <div className={`relative bg-white p-4 shadow-2xl transition-all duration-1000 ${posterUrl ? 'scale-100' : 'scale-[0.97] opacity-80'}`}>
+              <div className="w-full max-w-[360px] aspect-[3/4] bg-[#F9F7F2] border border-gray-200 flex items-center justify-center relative overflow-hidden group">
                 
-                {!posterUrl && !loadingStep && (
-                  <div className="text-center opacity-20">
-                    <Sparkles size={48} className="mx-auto mb-4" />
-                    <p className="writing-vertical font-bold text-2xl tracking-[0.5em]">虚位以待</p>
+                {!posterUrl && !status && (
+                  <div className="text-center opacity-10">
+                    <Sparkles size={64} className="mx-auto mb-6" />
+                    <p className="writing-vertical font-bold text-3xl tracking-[1em] h-32 flex items-center justify-center">万象更新</p>
                   </div>
                 )}
 
-                {loadingStep && (
-                  <div className="text-center z-10">
-                    <div className="w-12 h-12 border-2 border-cn-red border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-cn-red font-bold tracking-widest animate-pulse">影像冲印中...</p>
+                {status && (
+                  <div className="text-center z-10 p-8">
+                    <div className="w-14 h-14 border-4 border-cn-red/10 border-t-cn-red rounded-full animate-spin mx-auto mb-6"></div>
+                    <p className="text-cn-red font-bold tracking-[0.4em] animate-pulse text-lg">新春锦绣 正在显现</p>
+                    <p className="text-gray-400 text-[10px] mt-2 uppercase tracking-widest">Masterpiece is loading</p>
                   </div>
                 )}
 
                 {posterUrl && (
                   <>
                     <img src={posterUrl} className="w-full h-full object-cover animate-fade-in" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                      <a href={posterUrl} download target="_blank" className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-cn-red hover:bg-cn-gold hover:text-white transition-all">
-                        <Download size={20} />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-6 backdrop-blur-[2px]">
+                      <a href={posterUrl} download target="_blank" className="flex items-center gap-2 bg-white text-cn-red px-6 py-3 rounded-full font-bold shadow-xl hover:bg-cn-gold hover:text-white transition-all transform hover:scale-105">
+                        <Download size={18} />
+                        保存到相册
                       </a>
-                      <button onClick={() => { setPosterUrl(null); playSfx(sfxClick); }} className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-all">
-                        <RefreshCcw size={20} />
+                      <button onClick={() => { setPosterUrl(null); playSfx(sfxClick); }} className="text-white/70 hover:text-white flex items-center gap-1 text-xs border-b border-white/20 pb-0.5">
+                        <RefreshCcw size={12} /> 重新制作
                       </button>
                     </div>
                   </>
                 )}
               </div>
-            </div>
-
-            {/* 底部标记 */}
-            <div className="absolute bottom-6 text-[10px] text-gray-400 tracking-[0.4em] uppercase opacity-50">
-              © 2026 Lunar New Year Photography Studio
+              <div className="absolute bottom-6 right-6 writing-vertical text-[8px] text-gray-400 opacity-40 leading-none">二零二六 丙午年春 摄于新春映像馆</div>
             </div>
           </div>
         </main>
 
-        <footer className="mt-12 text-white/30 text-xs tracking-widest text-center">
-          技术驱动 AI 创意 · Dify Workflow Engine
+        <footer className="mt-10 text-white/30 text-[10px] tracking-[0.4em] text-center uppercase">
+          Technology Driven by Dify AI Workflow · Quality Guaranteed
         </footer>
       </div>
 
       <style>{`
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        .animate-fade-in { animation: fade-in 1s ease-out forwards; }
+        .animate-fade-in { animation: fade-in 1.2s ease-out forwards; }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
           25% { transform: translateX(-4px); }
@@ -382,11 +378,11 @@ const App = () => {
         .bg-noise { background-image: url('https://www.transparenttextures.com/patterns/stardust.png'); }
         .bg-paper-texture { background-image: url('https://www.transparenttextures.com/patterns/cream-paper.png'); }
         .text-gold-gradient {
-          background: linear-gradient(to bottom, #C5A059, #E5C585, #C5A059);
+          background: linear-gradient(to bottom, #E5C585, #C5A059, #E5C585);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
-        .animate-spin-slow { animation: spin 8s linear infinite; }
+        .animate-spin-slow { animation: spin 10s linear infinite; }
         .writing-vertical { writing-mode: vertical-rl; }
       `}</style>
     </div>
