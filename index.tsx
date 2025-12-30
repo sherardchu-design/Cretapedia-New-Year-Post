@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
   Loader2, Sparkles, Download, AlertCircle, 
-  Volume2, VolumeX, Upload, RefreshCcw, Wand2, X
+  Volume2, VolumeX, Upload, RefreshCcw, Wand2, X, Info
 } from 'lucide-react';
 
 // --- 配置与常量 ---
@@ -129,7 +129,7 @@ const App = () => {
     }
   };
 
-  // 图像选择逻辑
+  // 图像处理逻辑
   const processNewFile = async (selected: File) => {
     if (!selected.type.startsWith('image/')) {
       setError("请选择有效的图片文件。");
@@ -150,11 +150,24 @@ const App = () => {
     }
   };
 
+  // 拖拽相关逻辑
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) processNewFile(droppedFile);
+    if (droppedFile) {
+      processNewFile(droppedFile);
+    }
   };
 
   const handleGenerate = async () => {
@@ -213,8 +226,8 @@ const App = () => {
         
         {/* 标题区 */}
         <header className="text-center mb-10 animate-fade-in">
-          <div className="text-cn-gold tracking-[0.4em] text-xs mb-3 font-bold opacity-80 uppercase">丙午 · 2026 马年志庆</div>
-          <h1 className="text-6xl md:text-8xl font-bold text-gold-gradient mb-6 drop-shadow-lg">新春 · 映像</h1>
+          <div className="text-cn-gold tracking-[0.4em] text-xs mb-3 font-bold opacity-80 uppercase">2026 丙午马年 · 新春特辑</div>
+          <h1 className="text-5xl md:text-7xl font-bold text-gold-gradient mb-6 drop-shadow-lg">新春 · 映像</h1>
           <div className="flex items-center justify-center gap-4">
             <span className="h-px w-10 bg-cn-gold/40"></span>
             <p className="text-white/80 text-lg tracking-[0.2em] italic">定制您的二零二六贺岁海报</p>
@@ -227,9 +240,12 @@ const App = () => {
           
           {/* 左侧：步骤指引 */}
           <div className="w-full md:w-[400px] p-8 md:p-12 bg-[#FDFBF7] flex flex-col border-b md:border-b-0 md:border-r border-gray-100">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-cn-red mb-1">工坊工序</h2>
-              <p className="text-[10px] text-gray-400 tracking-widest uppercase">Generation Process</p>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-cn-red mb-2 flex items-center gap-2">
+                 <Wand2 size={20} className="text-cn-gold" />
+                 制作工序
+              </h2>
+              <p className="text-xs text-gray-400">简单三步，生成您的专属年画</p>
             </div>
 
             {error && (
@@ -243,39 +259,47 @@ const App = () => {
             <div className="mb-8">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-bold text-cn-red flex items-center gap-2">
-                   <span className="w-1.5 h-1.5 bg-cn-gold rotate-45"></span>
-                   壹 · 上传个人肖像
+                   <span className="w-5 h-5 rounded-full bg-cn-red text-white flex items-center justify-center text-xs">1</span>
+                   上传照片
                 </label>
-                {preview && <button onClick={() => { setFile(null); setPreview(null); }} className="text-[10px] text-gray-300 hover:text-cn-red">清除</button>}
+                {preview && <button onClick={() => { setFile(null); setPreview(null); }} className="text-[10px] text-gray-300 hover:text-cn-red flex items-center gap-1"><RefreshCcw size={10}/>重选</button>}
               </div>
+              
               <div 
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
                 onClick={() => document.getElementById('file-input')?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
                 className={`relative h-44 border-2 border-dashed rounded-lg transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden
-                  ${isDragging ? 'border-cn-gold bg-cn-gold/5 scale-[0.98]' : 'border-gray-200 hover:border-cn-gold/50 hover:bg-gray-50'}`}
+                  ${isDragging ? 'border-cn-gold bg-cn-gold/5 scale-[0.98]' : (preview ? 'border-cn-gold' : 'border-gray-200 hover:border-cn-gold/50 hover:bg-gray-50')}`}
               >
                 <input id="file-input" type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && processNewFile(e.target.files[0])} />
                 {preview ? (
                   <img src={preview} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="text-center px-4">
-                    <Upload className="mx-auto text-gray-300 mb-2 group-hover:text-cn-gold" size={28} />
-                    <p className="text-xs text-gray-400">点击此处或直接拖拽图片上传</p>
+                  <div className="text-center px-4 pointer-events-none">
+                    <Upload className={`mx-auto mb-2 transition-colors ${isDragging ? 'text-cn-gold' : 'text-gray-300 group-hover:text-cn-gold'}`} size={28} />
+                    <p className="text-sm font-bold text-gray-600 mb-1">点击选择图片</p>
+                    <p className="text-[10px] text-gray-400">( 或直接拖拽照片至此处 )</p>
                   </div>
                 )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <span className="text-white text-xs font-bold tracking-widest">更换图片</span>
-                </div>
+                {preview && (
+                   <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-white text-xs font-bold tracking-widest border border-white px-3 py-1 rounded-full">点击更换</span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 flex items-start gap-1.5 text-[10px] text-gray-400 bg-gray-50 p-2 rounded">
+                <Info size={12} className="shrink-0 mt-0.5 text-cn-gold" />
+                <p>小贴士：建议上传<span className="text-cn-red font-bold">正面、五官清晰</span>的半身照或大头照，AI 融合效果更佳。</p>
               </div>
             </div>
 
             {/* Step 2: 角色 */}
             <div className="mb-10">
               <label className="text-sm font-bold text-cn-red flex items-center gap-2 mb-4">
-                <span className="w-1.5 h-1.5 bg-cn-gold rotate-45"></span>
-                贰 · 选择风格形象
+                <span className="w-5 h-5 rounded-full bg-cn-red text-white flex items-center justify-center text-xs">2</span>
+                选择合影伙伴
               </label>
               <div className="grid grid-cols-5 gap-2">
                 {CHARACTERS.map((char) => (
@@ -295,7 +319,7 @@ const App = () => {
             <button
               onClick={handleGenerate}
               disabled={!!status || !file}
-              className={`mt-auto w-full py-5 rounded-lg font-bold tracking-[0.4em] transition-all relative overflow-hidden group
+              className={`mt-auto w-full py-4 rounded-lg font-bold tracking-[0.2em] transition-all relative overflow-hidden group
                 ${!!status || !file ? 'bg-gray-100 text-gray-300 cursor-not-allowed shadow-none' : 'bg-cn-red text-cn-gold hover:bg-[#601010] shadow-xl hover:-translate-y-0.5'}`}
             >
               <div className="relative z-10 flex items-center justify-center gap-2">
@@ -303,20 +327,19 @@ const App = () => {
                   <>
                     <Loader2 className="animate-spin" size={18} />
                     <span className="text-sm">
-                      {status === 'compressing' && '预处理中...'}
-                      {status === 'uploading' && '影像上传中...'}
-                      {status === 'generating' && 'AI 生成中...'}
+                      {status === 'compressing' && '照片预处理中...'}
+                      {status === 'uploading' && '上传至工坊...'}
+                      {status === 'generating' && 'AI 正在显影...'}
                     </span>
                   </>
                 ) : (
                   <>
-                    <Wand2 size={18} />
-                    <span className="text-base">立即冲印海报</span>
+                    <Sparkles size={18} />
+                    <span className="text-base">生成新年海报</span>
                   </>
                 )}
               </div>
             </button>
-            <p className="mt-4 text-[10px] text-gray-300 text-center leading-relaxed">提示：支持 JPG/PNG 格式，系统将自动进行合影处理</p>
           </div>
 
           {/* 右侧：预览区 */}
@@ -327,7 +350,7 @@ const App = () => {
               <div className="w-full max-w-[360px] aspect-[3/4] bg-[#F9F7F2] border border-gray-200 flex items-center justify-center relative overflow-hidden group">
                 
                 {!posterUrl && !status && (
-                  <div className="text-center opacity-10">
+                  <div className="text-center opacity-10 select-none">
                     <Sparkles size={64} className="mx-auto mb-6" />
                     <p className="writing-vertical font-bold text-3xl tracking-[1em] h-32 flex items-center justify-center">万象更新</p>
                   </div>
@@ -337,7 +360,7 @@ const App = () => {
                   <div className="text-center z-10 p-8">
                     <div className="w-14 h-14 border-4 border-cn-red/10 border-t-cn-red rounded-full animate-spin mx-auto mb-6"></div>
                     <p className="text-cn-red font-bold tracking-[0.4em] animate-pulse text-lg">新春锦绣 正在显现</p>
-                    <p className="text-gray-400 text-[10px] mt-2 uppercase tracking-widest">Masterpiece is loading</p>
+                    <p className="text-gray-400 text-[10px] mt-2 uppercase tracking-widest">Generating Masterpiece...</p>
                   </div>
                 )}
 
